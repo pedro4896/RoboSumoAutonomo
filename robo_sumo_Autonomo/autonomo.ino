@@ -1,124 +1,155 @@
-#include "Ultrasonic.h" //INCLUSÃO DA BIBLIOTECA NECESSÁRIA PARA FUNCIONAMENTO DO CÓDIGO
+#include "Ultrasonic.h" // Biblioteca para controle do sensor ultrassônico
 
-#define echoPin 4 //PINO DIGITAL UTILIZADO PELO HC-SR04 ECHO(RECEBE)
-#define trigPin 5 //PINO DIGITAL UTILIZADO PELO HC-SR04 TRIG(ENVIA)
-Ultrasonic ultrasonic(trigPin,echoPin); //INICIALIZANDO OS PINOS DO ARDUINO
+#define echoPin 4 // Pino ECHO do sensor HC-SR04
+#define trigPin 5 // Pino TRIG do sensor HC-SR04
+Ultrasonic ultrasonic(trigPin, echoPin); // Inicialização do sensor ultrassônico
 
-#define sensorDianteiro 2
-#define sensorTraseiro 3
+#define sensorDianteiro 2 // Sensor de linha frontal
+#define sensorTraseiro 3  // Sensor de linha traseiro
 
-// Definição do relé
-#define rele4 6       //o pino IN1 do Rele (modulo 1) será ligado ao pino 12 da Esp32
-#define rele3 7       //o pino IN2 do Rele (modulo 1) será ligado ao pino 27 da Esp32
-#define rele2 8      //o pino IN1 do Rele (modulo 2) será ligado ao pino 33 da Esp32
-#define rele1 9      //o pino IN2 do Rele (modulo 2)  será ligado ao pino 15 da Esp32
+// Definição dos pinos dos relés
+#define rele4 6
+#define rele3 7
+#define rele2 8
+#define rele1 9
 
-#define led 13
+#define led 13 // LED indicador
 
-int distancia; //VARIÁVEL DO TIPO INTEIRO
-String result; //VARIÁVEL DO TIPO STRING
+int distancia; // Armazena a distância medida pelo sensor ultrassônico
+String result; // Armazena a distância como string
+
+unsigned long tempoAnterior = 0; // Variável para armazenar o tempo anterior
+const unsigned long intervalo = 200; // Intervalo de 200ms para as funções de movimento
+
+volatile bool linhaBranca = false; // Flag para detectar linha branca
 
 void setup() {
-  pinMode(echoPin, INPUT); //DEFINE O PINO COMO ENTRADA (RECEBE)
-  pinMode(trigPin, OUTPUT); //DEFINE O PINO COMO SAIDA (ENVIA)
-  pinMode(sensorDianteiro, INPUT); // DEFINE O PINO COM ENTRADA
-  pinMode(sensorTraseiro, INPUT); // DEFINE O PINO COM ENTRADA
-  pinMode(rele1, OUTPUT); // DEFINE O PINO COMO SAIDA
-  pinMode(rele2, OUTPUT); // DEFINE O PINO COMO SAIDA
-  pinMode(rele3, OUTPUT); // DEFINE O PINO COMO SAIDA
-  pinMode(rele4, OUTPUT); // DEFINE O PINO COMO SAIDA
-  pinMode(led, OUTPUT); // DEFINE O PINO COMO SAIDA
+  // Configuração dos pinos
+  pinMode(echoPin, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(sensorDianteiro, INPUT);
+  pinMode(sensorTraseiro, INPUT);
+  pinMode(rele1, OUTPUT);
+  pinMode(rele2, OUTPUT);
+  pinMode(rele3, OUTPUT);
+  pinMode(rele4, OUTPUT);
+  //pinMode(led, OUTPUT);
 
-  digitalWrite(led, HIGH); //LIGA O LED DA PLACA ARDUINO
+  //digitalWrite(led, HIGH); // Liga o LED
 
-  Serial.begin(9600); // INICIALIZA A PORTA SERIAL
+  Serial.begin(9600); // Inicia comunicação serial
 
-  stop(); // STOP DOS MOTORES
+  stop(); // Garante que os motores estejam parados
 
-  attachInterrupt(sensorDianteiro, linhaFrente, FALLING);
-  attachInterrupt(sensorTraseiro, linhaTras, FALLING);
+  // Configuração das interrupções
+  attachInterrupt(digitalPinToInterrupt(sensorDianteiro), linhaFrente, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(sensorTraseiro), linhaTras, CHANGE);
 }
 
-void loop() {         
-  Serial.print("Sensor Frente:");
-  Serial.println(digitalRead(sensorDianteiro));
-  Serial.print("Sensor Tras:");
-  Serial.println(digitalRead(sensorTraseiro));
+void loop() {
+  // Se o robô estiver na linha branca, a lógica do ultrassônico é paralisada
+  if (!linhaBranca) {
+    // Leitura dos sensores de linha
+    /*Serial.print("Sensor Frente:");
+    Serial.println(digitalRead(sensorDianteiro));
+    Serial.print("Sensor Tras:");
+    Serial.println(digitalRead(sensorTraseiro));*/
 
-  hcsr04(); // FAZ A CHAMADA DO MÉTODO "hcsr04()"
-  Serial.print("Distancia "); //IMPRIME O TEXTO NO MONITOR SERIAL
-  Serial.print(distancia); ////IMPRIME NO MONITOR SERIAL A DISTÂNCIA MEDIDA
-  Serial.println("cm"); //IMPRIME O TEXTO NO MONITOR SERIAL
+    // Medição da distância
+    hcsr04(); 
+    /*Serial.print("Distancia ");
+    Serial.print(distancia);
+    Serial.println("cm");*/
 
-  if (distancia > 1 && distancia <50) { // Se um obstáculo for detectado a menos de 100 cm
-    movimento_frente();
-  } else {                 // Se nenhum obstáculo for detectado
-    movimento_frente();
-    delay(200);
-    movimento_esquerda();
+    // Movimentação com base na distância
+    if ((distancia > 1 && distancia < 50)) {
+      movimento_frente();
+    } else {
+      stop();
+      /*movimento_frente();
+      if (millis() - tempoAnterior >= intervalo) { // Verifica se o intervalo já passou
+        movimento_esquerda();
+        tempoAnterior = millis(); // Atualiza o tempo anterior
+      }*/
+    }
   }
 }
 
-//MÉTODO RESPONSÁVEL POR CALCULAR A DISTÂNCIA
-void hcsr04(){
-    digitalWrite(trigPin, LOW); //SETA O PINO 6 COM UM PULSO BAIXO "LOW"
-    delayMicroseconds(2); //INTERVALO DE 2 MICROSSEGUNDOS
-    digitalWrite(trigPin, HIGH); //SETA O PINO 6 COM PULSO ALTO "HIGH"
-    delayMicroseconds(10); //INTERVALO DE 10 MICROSSEGUNDOS
-    digitalWrite(trigPin, LOW); //SETA O PINO 6 COM PULSO BAIXO "LOW" NOVAMENTE
-    //FUNÇÃO RANGING, FAZ A CONVERSÃO DO TEMPO DE
-    //RESPOSTA DO ECHO EM CENTIMETROS, E ARMAZENA
-    //NA VARIAVEL "distancia"
-    distancia = (ultrasonic.Ranging(CM)); //VARIÁVEL GLOBAL RECEBE O VALOR DA DISTÂNCIA MEDIDA
-    result = String(distancia); //VARIÁVEL GLOBAL DO TIPO STRING RECEBE A DISTÂNCIA(CONVERTIDO DE INTEIRO PARA STRING)
-    delay(200); //INTERVALO DE 500 MILISSEGUNDOS
- }
+// Função para medir a distância com o sensor ultrassônico
+void hcsr04() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  distancia = (ultrasonic.Ranging(CM));
+  result = String(distancia);
+}
 
-void movimento_esquerda(){
-  digitalWrite(rele1, 1);                 //envia nível lógico alto para o rele 1       //liga o motor 1
-  digitalWrite(rele2, 0);                 //envia nível lógico baixo para o rele 2      //para frente
-  digitalWrite(rele3, 0);                 //envia nível lógico baixo para o rele 3       **liga o motor 2
-  digitalWrite(rele4, 1);                 //envia nível lógico alto para o rele 4        **para tras
-  delay(300);
+// Função para mover o robô para a esquerda
+void movimento_esquerda() {
+  digitalWrite(rele1, 1);
+  digitalWrite(rele2, 0);
+  digitalWrite(rele3, 0);
+  digitalWrite(rele4, 1);
+  unsigned long tempoInicio = millis();
+  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
   stop();
 }
 
-void movimento_direita(){
-  digitalWrite(rele1, 1);                 //envia nível lógico alto para o rele 1       //liga o motor 1
-  digitalWrite(rele2, 0);                 //envia nível lógico baixo para o rele 2      //para frente
-  digitalWrite(rele3, 0);                 //envia nível lógico baixo para o rele 3       **liga o motor 2
-  digitalWrite(rele4, 1);                 //envia nível lógico alto para o rele 4        **para tras
-  delay(300);
+// Função para mover o robô para a direita
+void movimento_direita() {
+  digitalWrite(rele1, 1);
+  digitalWrite(rele2, 0);
+  digitalWrite(rele3, 0);
+  digitalWrite(rele4, 1);
+  unsigned long tempoInicio = millis();
+  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
   stop();
 }
 
-void movimento_frente(){
-  digitalWrite(rele1, 1);                 //envia nível lógico alto para o rele 1       //liga o motor 1
-  digitalWrite(rele2, 0);                 //envia nível lógico baixo para o rele 2      //para frente
-  digitalWrite(rele3, 1);                 //envia nível lógico alto para o rele 3       **liga o motor 2
-  digitalWrite(rele4, 0);                 //envia nível lógico baixo para o rele 4      **para frente
+// Função para mover o robô para frente
+void movimento_frente() {
+  digitalWrite(rele1, 1);
+  digitalWrite(rele2, 0);
+  digitalWrite(rele3, 1);
+  digitalWrite(rele4, 0);
 }
 
-void movimento_tras(){
-  digitalWrite(rele1, 0);                 //envia nível lógico baixo para o rele 1       //liga o motor 1
-  digitalWrite(rele2, 1);                 //envia nível lógico alto para o rele 2        //para tras
-  digitalWrite(rele3, 0);                 //envia nível lógico baixo para o rele 3       **liga o motor 2
-  digitalWrite(rele4, 1);                 //envia nível lógico alto para o rele 4        **para tras
+// Função para mover o robô para trás
+void movimento_tras() {
+  digitalWrite(rele1, 0);
+  digitalWrite(rele2, 1);
+  digitalWrite(rele3, 0);
+  digitalWrite(rele4, 1);
 }
 
-void stop(){
-  digitalWrite(rele1, 1);                 //envia nível lógico alto para o rele 1      //desliga o motor 1
-  digitalWrite(rele2, 1);                 //envia nível lógico alto para o rele 2      //desliga o motor 1
-  digitalWrite(rele3, 1);                 //envia nível lógico alto para o rele 3      **desliga o motor 2
-  digitalWrite(rele4, 1);                 //envia nível lógico alto para o rele 4      **desliga o motor 2
+// Função para parar o movimento dos motores
+void stop() {
+  digitalWrite(rele1, 1);
+  digitalWrite(rele2, 1);
+  digitalWrite(rele3, 1);
+  digitalWrite(rele4, 1);
 }
 
-void linhaFrente(){
-  movimento_tras();
-  while(digitalRead(sensorDianteiro) == 1);
+// Interrupção para o sensor dianteiro
+void linhaFrente() {
+  if (digitalRead(sensorDianteiro) == 1) { // Detecta linha branca
+    Serial.println("Para Trás");
+    linhaBranca = true;
+    movimento_tras();
+  } else { // Detecta linha preta
+    linhaBranca = false;
+  }
 }
 
-void linhaTras(){
-  movimento_frente();
-  while(digitalRead(sensorTraseiro) == 1);
+// Interrupção para o sensor traseiro
+void linhaTras() {
+  if (digitalRead(sensorTraseiro) == 1) { // Detecta linha branca
+    Serial.println("Para Frente");
+    linhaBranca = true;
+    movimento_frente();
+  } else { // Detecta linha preta
+    linhaBranca = false;
+  }
 }
