@@ -19,9 +19,11 @@ int distancia; // Armazena a distância medida pelo sensor ultrassônico
 String result; // Armazena a distância como string
 
 unsigned long tempoAnterior = 0; // Variável para armazenar o tempo anterior
-const unsigned long intervalo = 1000; // Intervalo de 200ms para as funções de movimento
+const unsigned long intervalo = 1000; // Intervalo de 1000ms para as funções de movimento
 
-volatile bool linhaBranca = false; // Flag para detectar linha branca
+unsigned long tempoMovimento = 0; // Variável para armazenar o tempo de movimento
+bool movendo = false; // Flag para indicar se o robô está se movendo
+bool linhaBranca = false; // Flag para indicar se o robô está sobre a linha branca
 
 void setup() {
   // Configuração dos pinos
@@ -33,9 +35,7 @@ void setup() {
   pinMode(rele2, OUTPUT);
   pinMode(rele3, OUTPUT);
   pinMode(rele4, OUTPUT);
-  //pinMode(led, OUTPUT);
-
-  //digitalWrite(led, HIGH); // Liga o LED
+  pinMode(led, OUTPUT);
 
   Serial.begin(9600); // Inicia comunicação serial
 
@@ -47,32 +47,28 @@ void setup() {
 }
 
 void loop() {
-  // Se o robô estiver na linha branca, a lógica do ultrassônico é paralisada
-  if (linhaBranca == false) {
-    // Leitura dos sensores de linha
-    /*Serial.print("Sensor Frente:");
-    Serial.println(digitalRead(sensorDianteiro));
-    Serial.print("Sensor Tras:");
-    Serial.println(digitalRead(sensorTraseiro));*/
-
+  // Se o robô não está na linha branca
+  if (!linhaBranca) {
     // Medição da distância
-    hcsr04(); 
-    /*Serial.print("Distancia ");
-    Serial.print(distancia);
-    Serial.println("cm");*/
+    hcsr04();
 
     // Movimentação com base na distância
     if ((distancia > 1 && distancia < 50)) {
       movimento_frente();
       Serial.println("frente");
     } else {
-      movimento_frente();
-      if (millis() - tempoAnterior >= intervalo) { // Verifica se o intervalo já passou
+      if (millis() - tempoAnterior >= intervalo) {
         Serial.println("procura");
         movimento_esquerda();
         tempoAnterior = millis(); // Atualiza o tempo anterior
       }
     }
+  }
+
+  // Verifica se o tempo de movimentação já passou
+  if (movendo && millis() - tempoMovimento >= 300) {
+    stop();
+    movendo = false; // Marca que o robô parou
   }
 }
 
@@ -83,8 +79,7 @@ void hcsr04() {
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
-  distancia = (ultrasonic.Ranging(CM));
-  result = String(distancia);
+  distancia = ultrasonic.Ranging(CM);
   Serial.println(distancia);
 }
 
@@ -94,30 +89,20 @@ void movimento_esquerda() {
   digitalWrite(rele2, 0);
   digitalWrite(rele3, 0);
   digitalWrite(rele4, 1);
-  unsigned long tempoInicio = millis();
-  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
-  stop();
+
+  tempoMovimento = millis(); // Define o início do movimento
+  movendo = true; // Marca que o robô está se movendo
 }
 
 // Função para mover o robô para a direita
-
-void procura(){
-  movimento_frente();
-  unsigned long tempoInicio = millis();
-  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
-  movimento_esquerda();
-  tempoInicio = millis();
-  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
-  stop();
-}
 void movimento_direita() {
   digitalWrite(rele1, 1);
   digitalWrite(rele2, 0);
   digitalWrite(rele3, 0);
   digitalWrite(rele4, 1);
-  unsigned long tempoInicio = millis();
-  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
-  stop();
+
+  tempoMovimento = millis(); // Define o início do movimento
+  movendo = true; // Marca que o robô está se movendo
 }
 
 // Função para mover o robô para frente
@@ -126,9 +111,9 @@ void movimento_frente() {
   digitalWrite(rele2, 0);
   digitalWrite(rele3, 1);
   digitalWrite(rele4, 0);
-  unsigned long tempoInicio = millis();
-  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
-  stop();
+
+  tempoMovimento = millis(); // Define o início do movimento
+  movendo = true; // Marca que o robô está se movendo
 }
 
 // Função para mover o robô para trás
@@ -137,6 +122,9 @@ void movimento_tras() {
   digitalWrite(rele2, 1);
   digitalWrite(rele3, 0);
   digitalWrite(rele4, 1);
+
+  tempoMovimento = millis(); // Define o início do movimento
+  movendo = true; // Marca que o robô está se movendo
 }
 
 // Função para parar o movimento dos motores
