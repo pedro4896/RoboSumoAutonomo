@@ -19,7 +19,7 @@ int distancia; // Armazena a distância medida pelo sensor ultrassônico
 String result; // Armazena a distância como string
 
 unsigned long tempoAnterior = 0; // Variável para armazenar o tempo anterior
-const unsigned long intervalo = 200; // Intervalo de 200ms para as funções de movimento
+const unsigned long intervalo = 1000; // Intervalo de 200ms para as funções de movimento
 
 volatile bool linhaBranca = false; // Flag para detectar linha branca
 
@@ -48,7 +48,7 @@ void setup() {
 
 void loop() {
   // Se o robô estiver na linha branca, a lógica do ultrassônico é paralisada
-  if (!linhaBranca) {
+  if (linhaBranca == false) {
     // Leitura dos sensores de linha
     /*Serial.print("Sensor Frente:");
     Serial.println(digitalRead(sensorDianteiro));
@@ -64,13 +64,14 @@ void loop() {
     // Movimentação com base na distância
     if ((distancia > 1 && distancia < 50)) {
       movimento_frente();
+      Serial.println("frente");
     } else {
-      stop();
-      /*movimento_frente();
+      movimento_frente();
       if (millis() - tempoAnterior >= intervalo) { // Verifica se o intervalo já passou
+        Serial.println("procura");
         movimento_esquerda();
         tempoAnterior = millis(); // Atualiza o tempo anterior
-      }*/
+      }
     }
   }
 }
@@ -84,6 +85,7 @@ void hcsr04() {
   digitalWrite(trigPin, LOW);
   distancia = (ultrasonic.Ranging(CM));
   result = String(distancia);
+  Serial.println(distancia);
 }
 
 // Função para mover o robô para a esquerda
@@ -98,6 +100,16 @@ void movimento_esquerda() {
 }
 
 // Função para mover o robô para a direita
+
+void procura(){
+  movimento_frente();
+  unsigned long tempoInicio = millis();
+  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
+  movimento_esquerda();
+  tempoInicio = millis();
+  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
+  stop();
+}
 void movimento_direita() {
   digitalWrite(rele1, 1);
   digitalWrite(rele2, 0);
@@ -114,6 +126,9 @@ void movimento_frente() {
   digitalWrite(rele2, 0);
   digitalWrite(rele3, 1);
   digitalWrite(rele4, 0);
+  unsigned long tempoInicio = millis();
+  while (millis() - tempoInicio < 300); // Aguarda 300ms sem bloquear o loop principal
+  stop();
 }
 
 // Função para mover o robô para trás
